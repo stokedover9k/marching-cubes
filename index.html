@@ -1,0 +1,197 @@
+<html>
+
+<head>
+<meta http-equiv="content-type" content="text/html; charset=ISO-8859-1">
+
+<style>
+</style>
+
+<!--
+<script type="text/javascript" src="glMatrix-0.9.5.min.js"></script>
+-->
+<script type="text/javascript" src="gl-helpers.js"></script>
+
+<script type="text/javascript" src="gl-matrix/common.js"></script>
+<script type="text/javascript" src="gl-matrix/mat4.js"></script>
+<script type="text/javascript" src="gl-matrix/vec3.js"></script>
+<script type="text/javascript" src="gl-matrix/vec4.js"></script>
+
+<script type="text/javascript" src="controls.js"></script>
+<script type="text/javascript" src="data-structures.js"></script>
+<script type="text/javascript" src="webgl-utils.js"></script>
+<script type="text/javascript" src="gl-buffers.js"></script>
+
+<script id="shader-vs" type="x-shader/x-vertex">
+    attribute vec3 aVertexPosition;
+    uniform mat4 uMVMatrix;
+    uniform mat4 uPMatrix;
+
+    void main(void) {
+        gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
+        gl_PointSize = 4.0;
+    }
+</script>
+
+<script id="shader-fs" type="x-shader/x-fragment">
+    precision mediump float;
+    uniform vec3 uColor;
+    void main(void) {
+        gl_FragColor = vec4(uColor, 1.0);
+    }
+</script>
+
+<script type="text/javascript">
+
+    var shaderProgram;
+
+    function initShaders() {
+        shaderProgram = initShader("shader-vs", "shader-fs");
+
+        shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
+        gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
+
+        shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
+        shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+        shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "uSampler");
+        shaderProgram.colorUniform = gl.getUniformLocation(shaderProgram, "uColor");
+    }
+
+    //========== Controls ===============//
+
+    var CONTROLS = new Controls();
+
+    //========== Matrix Stack ===========//
+
+    var mvMatrix = {
+
+        zoom : -5,  spin : 0,  tilt : 0,
+
+        get : mat4.create(),   // model-view matrix
+        inv : mat4.create(),   // inverse of model-view matrix
+
+        compute : function (noInv) {
+            mat4.identity(this.get);
+            mat4.translate(this.get, this.get, [0.0, 0.0, this.zoom]);
+            mat4.rotate(this.get, this.get, glMatrix.toRadian(this.spin), [0.0, 1.0, 0.0]);
+            mat4.rotate(this.get, this.get, glMatrix.toRadian(this.tilt), [1.0, 0.0, 0.0]);
+            if( !noInv ) mat4.invert(this.inv, this.get);
+        }
+    };
+
+    var pMatrix = {
+
+        fov : 45,  near : 0.1,  far : 100.0,
+
+        get : mat4.create(),   // perspective matrix
+        inv : mat4.create(),   // inverse of perspective matrix
+
+        compute : function (noInv) {
+            mat4.perspective(this.get, this.fov, gl.viewportWidth / gl.viewportHeight, this.near, this.far);
+            if( !noInv ) mat4.invert(this.inv, this.get);
+        }
+    };
+
+    function setMatrixUniforms() {
+        gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix.get);
+        gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix.get);
+    }
+
+    function handleKeys () {
+        var mvInvalid = false;
+        if (CONTROLS.Keyboard.pressed[33]) {            // Page Up
+            mvMatrix.zoom -= 0.1;  mvInvalid = true;
+        }
+        if (CONTROLS.Keyboard.pressed[34]) {            // Page Down
+            mvMatrix.zoom += 0.1;  mvInvalid = true;
+        }
+        if (CONTROLS.Keyboard.pressed[38]) {            // Up cursor key
+            mvMatrix.tilt += 2;  mvInvalid = true;
+        }
+        if (CONTROLS.Keyboard.pressed[40]) {            // Down cursor key
+            mvMatrix.tilt -= 2;  mvInvalid = true;
+        }
+        if (CONTROLS.Keyboard.pressed[39]) {            // Right cursor key
+            mvMatrix.spin += 2;  mvInvalid = true;
+        }
+        if (CONTROLS.Keyboard.pressed[37]) {            // Right cursor key
+            mvMatrix.spin -= 2;  mvInvalid = true;
+        }
+        if( mvInvalid )
+            mvMatrix.compute();
+    }
+
+    //======================================================
+
+    BUFFERS = {};
+
+    function initBuffers() {
+
+        var vbuf = gl.createBuffer();
+        gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
+        vertices = [
+            -1.0, -1.0,  0.0,
+             1.0, -1.0,  0.0,
+            -1.0,  1.0,  0.0,
+             1.0,  1.0,  0.0
+        ];
+        gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
+        vbuf.itemSize = 3;
+        vbuf.numItems = 4;
+
+        BUFFERS.vbuf = vbuf;
+    }
+
+    //---------------------------------------------
+
+    function drawScene() {
+        gl.viewport(0, 0, gl.viewportWidth, gl.viewportHeight);
+        gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+
+        setMatrixUniforms();
+        gl.uniform3f(shaderProgram.colorUniform, .5, .5, .1);
+
+        gl.bindBuffer(gl.ARRAY_BUFFER, BUFFERS.vbuf);
+        gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, BUFFERS.vbuf.itemSize, gl.FLOAT, false, 0, 0);
+        gl.drawArrays(gl.TRIANGLE_STRIP, 0, BUFFERS.vbuf.numItems);
+    }
+
+    function tick() {
+        requestAnimFrame(tick);
+        handleKeys();
+        drawScene();
+    }
+
+    function webGLStart() {
+        var canvas = document.getElementById("main-canvas");
+        initGL(canvas);
+        initShaders();
+        initBuffers();
+
+        mvMatrix.compute();
+        pMatrix.compute();
+
+        gl.clearColor(0.0, 0.0, 0.0, 1.0);
+
+        document.onkeydown = function (event) { CONTROLS.Keyboard.handleDown(event.keyCode); };
+        document.onkeyup = function (event)   { CONTROLS.Keyboard.handleUp(event.keyCode); };
+
+        canvas.onmousemove = function (event) {
+            var x = event.clientX - event.target.getBoundingClientRect().left;
+            var y = event.clientY - event.target.getBoundingClientRect().top;
+            CONTROLS.Mouse.handleMove( x / gl.viewportWidth * 2 - 1, 1 - y / gl.viewportHeight * 2 );
+        }
+
+        canvas.onmousedown = function (event) { CONTROLS.Mouse.handleDown(); }
+        document.onmouseup = function (event) { CONTROLS.Mouse.handleUp(); }
+
+        tick();
+    }
+
+</script>
+</head>
+
+<body onload="webGLStart();">
+    <canvas id="main-canvas" style="border: none;" width="500" height="500"></canvas>
+</body>
+
+</html>
