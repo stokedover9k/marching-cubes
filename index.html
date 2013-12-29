@@ -20,13 +20,18 @@
 <script type="text/javascript" src="data-structures.js"></script>
 <script type="text/javascript" src="webgl-utils.js"></script>
 <script type="text/javascript" src="gl-buffers.js"></script>
+<script type="text/javascript" src="cubes.js"></script>
 
 <script id="shader-vs" type="x-shader/x-vertex">
     attribute vec3 aVertexPosition;
+    attribute vec3 aVertexNormal;
+    varying vec3 vNormal;
     uniform mat4 uMVMatrix;
+    uniform mat4 uNormalMatrix;
     uniform mat4 uPMatrix;
 
     void main(void) {
+        vNormal = normalize((uNormalMatrix * vec4(aVertexNormal, 0.)).xyz);
         gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
         gl_PointSize = 4.0;
     }
@@ -35,12 +40,18 @@
 <script id="shader-fs" type="x-shader/x-fragment">
     precision mediump float;
     uniform vec3 uColor;
+    varying vec3 vNormal;
     void main(void) {
-        gl_FragColor = vec4(uColor, 1.0);
+        float t = dot(vNormal, normalize(vec3(5., 5., 3.)));
+        gl_FragColor = vec4(uColor * (t), 1.0);
     }
 </script>
 
 <script type="text/javascript">
+
+    var CUBES;
+    
+
 
     var shaderProgram;
 
@@ -50,8 +61,12 @@
         shaderProgram.vertexPositionAttribute = gl.getAttribLocation(shaderProgram, "aVertexPosition");
         gl.enableVertexAttribArray(shaderProgram.vertexPositionAttribute);
 
+        shaderProgram.vertexNormalAttribute = gl.getAttribLocation(shaderProgram, "aVertexNormal");
+        gl.enableVertexAttribArray(shaderProgram.vertexNormalAttribute);
+
         shaderProgram.pMatrixUniform = gl.getUniformLocation(shaderProgram, "uPMatrix");
         shaderProgram.mvMatrixUniform = gl.getUniformLocation(shaderProgram, "uMVMatrix");
+        shaderProgram.normalMatrixUniform = gl.getUniformLocation(shaderProgram, "uNormalMatrix");
         shaderProgram.samplerUniform = gl.getUniformLocation(shaderProgram, "uSampler");
         shaderProgram.colorUniform = gl.getUniformLocation(shaderProgram, "uColor");
     }
@@ -64,17 +79,21 @@
 
     var mvMatrix = {
 
-        zoom : -5,  spin : 0,  tilt : 0,
+        zoom : -10,  spin : 0,  tilt : 0,
 
-        get : mat4.create(),   // model-view matrix
-        inv : mat4.create(),   // inverse of model-view matrix
+        get  : mat4.create(),   // model-view matrix
+        inv  : mat4.create(),   // inverse of model-view matrix
+        norm : mat4.create(),  // normal matrix
 
         compute : function (noInv) {
             mat4.identity(this.get);
             mat4.translate(this.get, this.get, [0.0, 0.0, this.zoom]);
             mat4.rotate(this.get, this.get, glMatrix.toRadian(this.spin), [0.0, 1.0, 0.0]);
             mat4.rotate(this.get, this.get, glMatrix.toRadian(this.tilt), [1.0, 0.0, 0.0]);
-            if( !noInv ) mat4.invert(this.inv, this.get);
+            if( !noInv ) {
+                mat4.invert(this.inv, this.get);
+                mat4.transpose(this.norm, this.inv);
+            }
         }
     };
 
@@ -94,6 +113,7 @@
     function setMatrixUniforms() {
         gl.uniformMatrix4fv(shaderProgram.pMatrixUniform, false, pMatrix.get);
         gl.uniformMatrix4fv(shaderProgram.mvMatrixUniform, false, mvMatrix.get);
+        gl.uniformMatrix4fv(shaderProgram.normalMatrixUniform, false, mvMatrix.norm);
     }
 
     function handleKeys () {
@@ -129,13 +149,13 @@
         var vbuf = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
         vertices = [
-            -1.0, -1.0,  0.0,
-             1.0, -1.0,  0.0,
-            -1.0,  1.0,  0.0,
-             1.0,  1.0,  0.0
+            -1.0, -1.0,  0.0,   0,0,1,
+             1.0, -1.0,  0.0,   0,0,1,
+            -1.0,  1.0,  0.0,   0,0,1,
+             1.0,  1.0,  0.0,   0,0,1
         ];
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
-        vbuf.itemSize = 3;
+        vbuf.itemSize = 6;
         vbuf.numItems = 4;
 
         BUFFERS.vbuf = vbuf;
@@ -151,8 +171,11 @@
         gl.uniform3f(shaderProgram.colorUniform, .5, .5, .1);
 
         gl.bindBuffer(gl.ARRAY_BUFFER, BUFFERS.vbuf);
-        gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, BUFFERS.vbuf.itemSize, gl.FLOAT, false, 0, 0);
-        gl.drawArrays(gl.TRIANGLE_STRIP, 0, BUFFERS.vbuf.numItems);
+        gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, 3, gl.FLOAT, false, 24, 0);
+        gl.vertexAttribPointer(shaderProgram.vertexNormalAttribute, 3, gl.FLOAT, false, 24, 12);
+
+        CUBES.evalAllCubes();
+//        gl.drawArrays(gl.TRIANGLE_STRIP, 0, BUFFERS.vbuf.numItems);
     }
 
     function tick() {
@@ -166,6 +189,9 @@
         initGL(canvas);
         initShaders();
         initBuffers();
+
+        CUBES = CUBES_INIT(10);
+        console.log(CUBES.edges);
 
         mvMatrix.compute();
         pMatrix.compute();
