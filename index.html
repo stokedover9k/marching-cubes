@@ -88,15 +88,15 @@
 
     var mvMatrix = {
 
-        zoom : -10,  spin : 0,  tilt : 0,
+        zoom : -10,  shiftX : 0, shiftY : 0,  spin : 0,  tilt : 0,
 
         get  : mat4.create(),   // model-view matrix
         inv  : mat4.create(),   // inverse of model-view matrix
-        norm : mat4.create(),  // normal matrix
+        norm : mat4.create(),   // normal matrix
 
         compute : function (noInv) {
             mat4.identity(this.get);
-            mat4.translate(this.get, this.get, [0.0, 0.0, this.zoom]);
+            mat4.translate(this.get, this.get, [this.shiftX, this.shiftY, this.zoom]);
             mat4.rotate(this.get, this.get, glMatrix.toRadian(this.spin), [0.0, 1.0, 0.0]);
             mat4.rotate(this.get, this.get, glMatrix.toRadian(this.tilt), [1.0, 0.0, 0.0]);
             if( !noInv ) {
@@ -242,7 +242,25 @@
         gl.cullFace(gl.FRONT);
 
         CUBES = CUBES_INIT(10);
-//        console.log(CUBES.edges);
+
+        var sphere1 = {
+            radius : CUBES.N / 4,
+            center : function () { return [CUBES.N / 2 + CUBES.N / 5 * Math.cos(CUBES.time), CUBES.N / 2, CUBES.N / 2]; },
+            valueAt : function (p) { return this.radius - vec3.distance(this.center(), p); }
+        };
+
+        var sphere2 = {
+            radius : CUBES.N / 6,
+            center : function () { return [CUBES.N / 3 + CUBES.N / 6 * Math.sin(CUBES.time * 1.5), CUBES.N / 3, CUBES.N / 1.5]; },
+            valueAt : function (p) { return this.radius - vec3.distance(this.center(), p); }
+        };
+
+        CUBES.OBJECTS.push(function (p) { return sphere1.valueAt(p); });
+        CUBES.OBJECTS.push(function (p) { return sphere2.valueAt(p); });
+
+        mvMatrix.shiftX = - CUBES.N / 2;
+        mvMatrix.shiftY = - CUBES.N / 2;
+        mvMatrix.zoom = - 2 * CUBES.N;
 
         mvMatrix.compute();
         pMatrix.compute();
