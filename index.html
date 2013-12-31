@@ -20,6 +20,7 @@
 <script type="text/javascript" src="data-structures.js"></script>
 <script type="text/javascript" src="webgl-utils.js"></script>
 <script type="text/javascript" src="gl-buffers.js"></script>
+<script type="text/javascript" src="cubes-table.js"></script>
 <script type="text/javascript" src="cubes.js"></script>
 
 <script id="shader-vs" type="x-shader/x-vertex">
@@ -31,9 +32,8 @@
     uniform mat4 uPMatrix;
 
     void main(void) {
-        vNormal = normalize((uNormalMatrix * vec4(aVertexNormal, 0.)).xyz);
+        vNormal = normalize( (uNormalMatrix * vec4(normalize(aVertexNormal), 0.)).xyz );
         gl_Position = uPMatrix * uMVMatrix * vec4(aVertexPosition, 1.0);
-        gl_PointSize = 4.0;
     }
 </script>
 
@@ -42,8 +42,17 @@
     uniform vec3 uColor;
     varying vec3 vNormal;
     void main(void) {
-        float t = dot(vNormal, normalize(vec3(5., 5., 3.)));
-        gl_FragColor = vec4(uColor * (t), 1.0);
+        vec3 lightDir1 = vec3(-5., 2., 0.);  vec3 light1 = vec3(1., 0., 0.);
+        vec3 lightDir2 = vec3( 5., 2., 0.);  vec3 light2 = vec3(0., 0., 1.);
+
+        float t1 = max(0., dot(vNormal, normalize(lightDir1)));
+        float t2 = max(0., dot(vNormal, normalize(lightDir2)));
+
+        float amb = 0.4;
+        vec3 ambColor = vec3(.3,.3,.3);
+        vec3 specColor = (t1) * light1 + (t2) * light2;
+
+        gl_FragColor = vec4(amb * ambColor + (1.0 - amb) * specColor * uColor, 1.0);
     }
 </script>
 
@@ -99,7 +108,7 @@
 
     var pMatrix = {
 
-        fov : 45,  near : 0.1,  far : 100.0,
+        fov : 45,  near : 0.3,  far : 100.0,
 
         get : mat4.create(),   // perspective matrix
         inv : mat4.create(),   // inverse of perspective matrix
@@ -149,14 +158,52 @@
         var vbuf = gl.createBuffer();
         gl.bindBuffer(gl.ARRAY_BUFFER, vbuf);
         vertices = [
+        /*
+            1.5, 2, 2, -0.25, -0.25, -0.25
+            ,2, 1.5, 2, -0.25, -0.25, -0.25
+            ,2, 2, 1.5, -0.25, -0.25, -0.25
+            ,
+            1.5, 2, 2, -0.25, -0.25, 0.25
+            ,2, 2, 2.5, -0.25, -0.25, 0.25
+            ,2, 1.5, 2, -0.25, -0.25, 0.25
+            ,
+            1.5, 2, 2, -0.25, 0.25, -0.25
+            ,2, 2, 1.5, -0.25, 0.25, -0.25
+            ,2, 2.5, 2, -0.25, 0.25, -0.25
+            ,
+            1.5, 2, 2, -0.25, 0.25, 0.25
+            ,2, 2.5, 2, -0.25, 0.25, 0.25
+            ,2, 2, 2.5, -0.25, 0.25, 0.25
+            ,
+            */
+            2, 1.5, 2, 0.25, -0.25, -0.25
+            ,2.5, 2, 2, 0.25, -0.25, -0.25
+            ,2, 2, 1.5, 0.25, -0.25, -0.25
+            ,
+            2, 1.5, 2, 0.25, -0.25, 0.25
+            ,2, 2, 2.5, 0.25, -0.25, 0.25
+            ,2.5, 2, 2, 0.25, -0.25, 0.25
+            ,
+            2, 2, 1.5, 0.25, 0.25, -0.25
+            ,2.5, 2, 2, 0.25, 0.25, -0.25
+            ,2, 2.5, 2, 0.25, 0.25, -0.25
+            ,
+            2, 2, 2.5, 0.25, 0.25, 0.25
+            ,2, 2.5, 2, 0.25, 0.25, 0.25
+            ,2.5, 2, 2, 0.25, 0.25, 0.25
+            //*/
+        ];
+        /*
+        vertices = [
             -1.0, -1.0,  0.0,   0,0,1,
              1.0, -1.0,  0.0,   0,0,1,
             -1.0,  1.0,  0.0,   0,0,1,
              1.0,  1.0,  0.0,   0,0,1
         ];
+        */
         gl.bufferData(gl.ARRAY_BUFFER, new Float32Array(vertices), gl.STATIC_DRAW);
         vbuf.itemSize = 6;
-        vbuf.numItems = 4;
+        vbuf.numItems = vertices.length / vbuf.itemSize;
 
         BUFFERS.vbuf = vbuf;
     }
@@ -175,7 +222,7 @@
         gl.vertexAttribPointer(shaderProgram.vertexNormalAttribute, 3, gl.FLOAT, false, 24, 12);
 
         CUBES.evalAllCubes();
-//        gl.drawArrays(gl.TRIANGLE_STRIP, 0, BUFFERS.vbuf.numItems);
+//        gl.drawArrays(gl.TRIANGLES, 0, BUFFERS.vbuf.numItems);
     }
 
     function tick() {
@@ -189,9 +236,12 @@
         initGL(canvas);
         initShaders();
         initBuffers();
+        gl.frontFace(gl.CCW);
+        gl.enable(gl.CULL_FACE);
+        gl.cullFace(gl.FRONT);
 
         CUBES = CUBES_INIT(10);
-        console.log(CUBES.edges);
+//        console.log(CUBES.edges);
 
         mvMatrix.compute();
         pMatrix.compute();
