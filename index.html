@@ -221,6 +221,7 @@
         gl.vertexAttribPointer(shaderProgram.vertexPositionAttribute, 3, gl.FLOAT, false, 24, 0);
         gl.vertexAttribPointer(shaderProgram.vertexNormalAttribute, 3, gl.FLOAT, false, 24, 12);
 
+        CUBES.time = Date.now() / 1000;
         CUBES.evalAllCubes();
 //        gl.drawArrays(gl.TRIANGLES, 0, BUFFERS.vbuf.numItems);
     }

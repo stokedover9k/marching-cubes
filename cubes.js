@@ -6,6 +6,8 @@ CUBES_INIT = function (N) {
 
   var CUBES = {};
 
+  CUBES.time = Date.now() / 1000;
+
   //----------------------------------------------------------------------------------
 
   function _edge_index_ (a, b, c, d) { return 3 * (a + N1*b + N1N1*c) + d; }
@@ -154,7 +156,10 @@ CUBES_INIT = function (N) {
   // @arg v vertex offset
   CUBES.valueAtCorner = function (c, v) {
     var xyz = vec3.add(vec3.create(), c, v);
-    return 3.5 - vec3.distance(xyz, [5,5,5]);
+    var val1 = 3.5 - vec3.distance(xyz, [5 + Math.cos(this.time),5,5]);
+    var val2 = 2 - vec3.distance(xyz, [3 + Math.sin(this.time), 3,6 + 1.5 * Math.cos(this.time * 3)]);
+
+    return Math.max(val1, val2);
   }
 
   function getVertexOfEdge (edge) {
