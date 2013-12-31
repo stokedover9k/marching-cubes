@@ -161,6 +161,17 @@ CUBES_INIT = function (N) {
     return edge;
   }
 
+  function evalVertexOfEdge (edgeIndex) {
+    var id = _id_of_e_(edgeIndex);
+    var A = CUBES.valueAtCorner(id, vo0);
+    var bOffset = [vo1, vo2, vo4][id[3]];
+    var B = CUBES.valueAtCorner(id, bOffset);
+    var t = A / (A-B);
+    var a = CUBES.verts[_ind_v_(id, vo0)];
+    var b = CUBES.verts[_ind_v_(id, bOffset)];
+    vec3.lerp(getVertexOfEdge(CUBES.edges[edgeIndex]), a, b, t);
+  }
+
   var _three_verts_ = [];
   var DEBUG = true;
   function renderVertexOfEdge (edgeIndex) {
@@ -233,6 +244,7 @@ CUBES_INIT = function (N) {
       var eo = CUBES.getEO(a, b);
       var edgeIndex = _ind_e_(c, eo);
 
+      evalVertexOfEdge(edgeIndex);
       renderVertexOfEdge(edgeIndex);
     }
   }
